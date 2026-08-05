@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: product-description-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/productdesc}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.xml
+  jooq:
+    sql-dialect: POSTGRES
+
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+      api-key: ${LLM_API_KEY:changeme}
+      model-name: ${LLM_MODEL:gpt-4o-mini}
+      response-format: json_schema
+      strict-json-schema: true
+      temperature: 0.4
+      log-requests: ${LLM_LOG:false}
+      log-responses: ${LLM_LOG:false}
+
+app:
+  allegro:
+    title:
+      max-length: 75

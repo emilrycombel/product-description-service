@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+      All types here are chosen to be valid under BOTH Postgres (runtime) and the in-memory H2
+      used by offline jOOQ codegen. JSON payloads are stored as CLOB/TEXT and (de)serialized with
+      Jackson in the persistence adapter. IDs and timestamps are set in the domain (no DB functions).
+    -->
+    <changeSet id="001-create-product-description" author="ercode">
+        <createTable tableName="product_description">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="product_name" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="category" type="clob"/>
+            <column name="brand" type="clob"/>
+            <column name="language" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="supplier_text" type="clob"/>
+            <column name="user_text" type="clob"/>
+            <column name="image_inputs" type="clob"/>
+
+            <!-- Structured description sections (JSON arrays/objects stored as text) -->
+            <column name="title" type="clob"/>
+            <column name="marketing_hook" type="clob"/>
+            <column name="benefit_bullets" type="clob"/>
+            <column name="set_contents" type="clob"/>
+            <column name="compatibility" type="clob"/>
+            <column name="spec_table" type="clob"/>
+            <column name="brand_blurb" type="clob"/>
+
+            <column name="raw_json" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="model_name" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="structure_version" type="clob">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Seam for feature 003 (scoring 1-10) -->
+            <column name="score" type="numeric(4,3)"/>
+
+            <column name="created_at" type="timestamp with time zone">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

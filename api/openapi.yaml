@@ -1,0 +1,246 @@
+openapi: 3.1.0
+info:
+  title: Product Description Service API
+  version: 0.1.0
+  description: >
+    Generates, scores, templatizes, and SEO-optimizes eCommerce product content using LLMs.
+    This contract is the source of truth for the HTTP API (see memory/constitution.md).
+servers:
+  - url: http://localhost:8080
+    description: Local
+
+paths:
+  /api/v1/descriptions:generate:
+    post:
+      operationId: generateDescription
+      summary: Generate a structured product description from mixed inputs
+      description: >
+        Produces a canonical, fixed-structure product description from supplier text, the user's own
+        text, and/or product images. The output structure is identical across all responses.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDescriptionRequest'
+      responses:
+        '200':
+          description: Description generated and persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDescriptionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+
+  /api/v1/allegro-titles:generate:
+    post:
+      operationId: generateAllegroTitle
+      summary: Generate an Allegro search-optimized product title
+      description: >
+        Produces a keyword-first title tuned for Allegro search (brand + product type + model + key
+        attributes), within the configured character limit, plus alternative variants and a rationale.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAllegroTitleRequest'
+      responses:
+        '200':
+          description: Title generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllegroTitle'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+
+components:
+  responses:
+    BadRequest:
+      description: Invalid request (validation failure)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unprocessable:
+      description: The model output did not satisfy the canonical structure
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UpstreamError:
+      description: The LLM gateway failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    GenerateDescriptionRequest:
+      type: object
+      required: [productName]
+      properties:
+        productName:
+          type: string
+          minLength: 1
+          example: "Szkło hartowane Spigen GLAS.tR z aplikatorem do iPhone 16 Pro (2 szt.)"
+        category:
+          type: string
+          example: "Szkła hartowane"
+        brand:
+          type: string
+          example: "Spigen"
+        language:
+          type: string
+          default: "pl"
+          description: BCP-47-ish language tag for the generated copy
+        supplierText:
+          type: string
+          description: Raw description text provided by a supplier
+        userText:
+          type: string
+          description: The user's own notes/text
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageInput'
+
+    ImageInput:
+      type: object
+      description: Exactly one of `url` or (`base64` + `mimeType`) must be provided.
+      properties:
+        url:
+          type: string
+          format: uri
+        base64:
+          type: string
+          description: Base64-encoded image bytes
+        mimeType:
+          type: string
+          example: "image/png"
+
+    GenerateDescriptionResponse:
+      type: object
+      required: [id, modelName, structureVersion, createdAt, description]
+      properties:
+        id:
+          type: string
+          format: uuid
+        modelName:
+          type: string
+        structureVersion:
+          type: string
+          description: Canonical structure version of the description payload
+        createdAt:
+          type: string
+          format: date-time
+        description:
+          $ref: '#/components/schemas/GeneratedDescription'
+
+    GeneratedDescription:
+      type: object
+      description: Canonical, fixed-structure description. All fields are always present.
+      required: [title, marketingHook, benefitBullets, setContents, compatibility, specTable, brandBlurb]
+      properties:
+        title:
+          type: string
+        marketingHook:
+          type: string
+          description: Punchy opening hook
+        benefitBullets:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        setContents:
+          type: array
+          description: What's in the box
+          items:
+            type: string
+        compatibility:
+          type: string
+          description: Compatibility notes (e.g. exact device models)
+        specTable:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/SpecRow'
+        brandBlurb:
+          type: string
+          description: Short about-the-brand paragraph
+
+    SpecRow:
+      type: object
+      required: [label, value]
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+
+    GenerateAllegroTitleRequest:
+      type: object
+      required: [productName]
+      properties:
+        productName:
+          type: string
+          minLength: 1
+        brand:
+          type: string
+        category:
+          type: string
+        model:
+          type: string
+          description: Target product model/variant (e.g. "iPhone 16 Pro")
+        keyAttributes:
+          type: array
+          description: Salient attributes to prioritize (e.g. "2-pack", "9H", "z aplikatorem")
+          items:
+            type: string
+        language:
+          type: string
+          default: "pl"
+
+    AllegroTitle:
+      type: object
+      required: [primary, variants, rationale, charCount]
+      properties:
+        primary:
+          type: string
+          description: The recommended title
+        variants:
+          type: array
+          items:
+            type: string
+        rationale:
+          type: string
+          description: Why this title maximizes Allegro search visibility
+        charCount:
+          type: integer
+          description: Character count of `primary`
+
+    Problem:
+      type: object
+      description: RFC 7807 problem details
+      properties:
+        type:
+          type: string
+          default: "about:blank"
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string

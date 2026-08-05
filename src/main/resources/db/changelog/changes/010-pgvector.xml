@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+      Postgres-only: enables pgvector for the templatize/RAG follow-up (feature 004). Fenced with
+      dbms="postgresql" so the in-memory-H2 jOOQ codegen run skips it (H2 has no CREATE EXTENSION /
+      vector type). jOOQ never touches embeddings, so nothing is lost from the generated code.
+    -->
+    <changeSet id="010-enable-pgvector" author="ercode" dbms="postgresql">
+        <sql>CREATE EXTENSION IF NOT EXISTS vector;</sql>
+    </changeSet>
+
+</databaseChangeLog>
