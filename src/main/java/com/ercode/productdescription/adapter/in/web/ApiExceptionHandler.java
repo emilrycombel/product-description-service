@@ -1,6 +1,7 @@
 package com.ercode.productdescription.adapter.in.web;
 
 import com.ercode.productdescription.application.LlmUnavailableException;
+import com.ercode.productdescription.domain.DescriptionNotFoundException;
 import com.ercode.productdescription.domain.IncompleteDescriptionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -29,6 +30,14 @@ public class ApiExceptionHandler {
         problem.setTitle("Incomplete description");
         problem.setDetail(ex.getMessage());
         problem.setProperty("missingSections", ex.missingSections());
+        return problem;
+    }
+
+    @ExceptionHandler(DescriptionNotFoundException.class)
+    public ProblemDetail onNotFound(DescriptionNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Description not found");
+        problem.setDetail(ex.getMessage());
         return problem;
     }
 

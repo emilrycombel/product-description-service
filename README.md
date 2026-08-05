@@ -11,8 +11,13 @@ Two LLM verticals implemented end-to-end:
 | --- | --- | --- |
 | Generate description (multimodal: supplier text + user text + images) | `POST /api/v1/descriptions:generate` | jOOQ → Postgres |
 | Generate Allegro search-optimized title | `POST /api/v1/allegro-titles:generate` | stateless |
+| Score a stored description (1–10, LLM-as-judge) | `POST /api/v1/descriptions/{id}:score` | jOOQ → Postgres |
+| Score an ad-hoc description (1–10) | `POST /api/v1/descriptions:score` | stateless |
 
-Follow-up passes (seams already in place): `003` scoring (1–10), `004` templatize/RAG (pgvector).
+Scoring returns an overall 1.0–10.0 (one decimal) plus per-dimension sub-scores (completeness, faithfulness,
+clarity, persuasiveness, Allegro SEO) and a summary — a canonical, `rubricVersion`-tagged structure.
+
+Follow-up pass (seam already in place): `004` templatize/RAG (pgvector).
 
 ## Stack
 

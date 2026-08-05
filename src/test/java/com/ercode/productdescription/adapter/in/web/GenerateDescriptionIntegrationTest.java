@@ -1,9 +1,12 @@
 package com.ercode.productdescription.adapter.in.web;
 
+import com.ercode.productdescription.domain.model.DescriptionScore;
+import com.ercode.productdescription.domain.model.DimensionScore;
 import com.ercode.productdescription.domain.model.GeneratedDescription;
 import com.ercode.productdescription.domain.model.SpecRow;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import org.jooq.DSLContext;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,24 +20,28 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.ercode.productdescription.adapter.out.persistence.jooq.Tables.PRODUCT_DESCRIPTION;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * End-to-end proof of the generate-description vertical, fully offline: a real Postgres+pgvector via
- * Testcontainers and a WireMock-stubbed OpenAI endpoint (no real key/network). Runs in CI; auto-skips
- * where Docker is unavailable.
+ * End-to-end proof of the generate + score verticals, fully offline: a real Postgres+pgvector via
+ * Testcontainers and a WireMock-stubbed OpenAI endpoint (no real key/network). The generation and scoring
+ * calls hit the same completions URL, disambiguated by request-body content + stub priority. Runs in CI;
+ * auto-skips where Docker is unavailable.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers(disabledWithoutDocker = true)
@@ -49,10 +56,15 @@ class GenerateDescriptionIntegrationTest {
 
     static {
         WIRE_MOCK.start();
+        // Scoring requests carry the judge system prompt ("...quality reviewer...") — match them first.
         WIRE_MOCK.stubFor(post(urlPathEqualTo("/v1/chat/completions"))
-                .willReturn(aResponse()
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(openAiChatCompletionBody())));
+                .atPriority(1)
+                .withRequestBody(containing("reviewer"))
+                .willReturn(jsonResponse(openAiScoreBody())));
+        // Everything else is a generation request.
+        WIRE_MOCK.stubFor(post(urlPathEqualTo("/v1/chat/completions"))
+                .atPriority(5)
+                .willReturn(jsonResponse(openAiDescriptionBody())));
     }
 
     @DynamicPropertySource
@@ -67,8 +79,51 @@ class GenerateDescriptionIntegrationTest {
     @Autowired
     private DSLContext dsl;
 
+    @BeforeEach
+    void resetTable() {
+        dsl.deleteFrom(PRODUCT_DESCRIPTION).execute();
+    }
+
     @Test
     void generates_a_structured_description_and_persists_it() throws Exception {
+        HttpResponse<String> response = generate();
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body())
+                .contains("structureVersion")
+                .contains("1.0")
+                .contains("iPhone 16 Pro");
+
+        assertThat(dsl.fetchCount(PRODUCT_DESCRIPTION)).isEqualTo(1);
+        var row = dsl.selectFrom(PRODUCT_DESCRIPTION).fetchSingle();
+        assertThat(row.getStructureVersion()).isEqualTo(GeneratedDescription.STRUCTURE_VERSION);
+        assertThat(row.getModelName()).isNotBlank();
+        assertThat(row.getRawJson()).isNotBlank();
+        assertThat(row.getScore()).isNull();
+    }
+
+    @Test
+    void scores_a_stored_description_and_persists_the_score() throws Exception {
+        assertThat(generate().statusCode()).isEqualTo(200);
+        UUID id = dsl.selectFrom(PRODUCT_DESCRIPTION).fetchSingle().getId();
+
+        HttpRequest scoreRequest = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/v1/descriptions/" + id + ":score"))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+        HttpResponse<String> response = HttpClient.newHttpClient()
+                .send(scoreRequest, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("overall").contains("rubricVersion");
+
+        var row = dsl.selectFrom(PRODUCT_DESCRIPTION).where(PRODUCT_DESCRIPTION.ID.eq(id)).fetchSingle();
+        assertThat(row.getScore()).isNotNull();
+        assertThat(row.getScoredAt()).isNotNull();
+        assertThat(row.getScoreAssessment()).isNotBlank();
+    }
+
+    private HttpResponse<String> generate() throws Exception {
         String requestBody = """
                 {
                   "productName": "Spigen GLAS.tR do iPhone 16 Pro (2 szt.)",
@@ -79,32 +134,19 @@ class GenerateDescriptionIntegrationTest {
                   "images": [{ "url": "https://example.com/spigen.png" }]
                 }
                 """;
-
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/api/v1/descriptions:generate"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
-        HttpResponse<String> response = HttpClient.newHttpClient()
-                .send(request, HttpResponse.BodyHandlers.ofString());
-
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body())
-                .contains("structureVersion")
-                .contains("1.0")
-                .contains("iPhone 16 Pro");
-
-        // Persistence: exactly one row, canonical structure version stored, score not yet set.
-        assertThat(dsl.fetchCount(PRODUCT_DESCRIPTION)).isEqualTo(1);
-        var row = dsl.selectFrom(PRODUCT_DESCRIPTION).fetchSingle();
-        assertThat(row.getStructureVersion()).isEqualTo(GeneratedDescription.STRUCTURE_VERSION);
-        assertThat(row.getModelName()).isNotBlank();
-        assertThat(row.getRawJson()).isNotBlank();
-        assertThat(row.getScore()).isNull();
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private static String openAiChatCompletionBody() {
-        JsonMapper mapper = JsonMapper.builder().build();
+    private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder jsonResponse(String body) {
+        return aResponse().withHeader("Content-Type", "application/json").withBody(body);
+    }
+
+    private static String openAiDescriptionBody() {
         GeneratedDescription description = new GeneratedDescription(
                 "Szkło hartowane Spigen GLAS.tR do iPhone 16 Pro (2 szt.)",
                 "Najwyższa ochrona z powłoką 9H i łatwą aplikacją.",
@@ -113,8 +155,25 @@ class GenerateDescriptionIntegrationTest {
                 "Apple iPhone 16 Pro",
                 List.of(new SpecRow("Twardość", "9H"), new SpecRow("Ilość", "2 szt.")),
                 "Spigen to uznany producent akcesoriów ochronnych.");
+        return completion(description);
+    }
 
-        String content = mapper.writeValueAsString(description);
+    private static String openAiScoreBody() {
+        DescriptionScore score = new DescriptionScore(
+                new BigDecimal("8.5"),
+                List.of(
+                        new DimensionScore("COMPLETENESS", BigDecimal.valueOf(9), "all sections present"),
+                        new DimensionScore("FAITHFULNESS", BigDecimal.valueOf(8), "claims supported"),
+                        new DimensionScore("CLARITY", BigDecimal.valueOf(9), "scannable"),
+                        new DimensionScore("PERSUASIVENESS", BigDecimal.valueOf(8), "strong hook"),
+                        new DimensionScore("SEO_ALLEGRO_FIT", BigDecimal.valueOf(8), "good keywords")),
+                "Strong listing; tighten the hook.");
+        return completion(score);
+    }
+
+    private static String completion(Object structuredContent) {
+        JsonMapper mapper = JsonMapper.builder().build();
+        String content = mapper.writeValueAsString(structuredContent);
         Map<String, Object> body = Map.of(
                 "id", "chatcmpl-test",
                 "object", "chat.completion",

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+      Feature 003 (scoring 1-10). Widen `score` (numeric(4,3) could not hold 10) and add the full
+      assessment payload + audit timestamp. All types stay H2-codegen-safe (no dbms fence needed).
+    -->
+    <changeSet id="002-widen-score" author="ercode">
+        <modifyDataType tableName="product_description" columnName="score" newDataType="numeric(4,2)"/>
+    </changeSet>
+
+    <changeSet id="002-add-score-columns" author="ercode">
+        <addColumn tableName="product_description">
+            <column name="score_assessment" type="clob"/>
+            <column name="scored_at" type="timestamp with time zone"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

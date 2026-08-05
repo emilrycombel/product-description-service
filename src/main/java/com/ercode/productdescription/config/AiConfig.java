@@ -2,6 +2,7 @@ package com.ercode.productdescription.config;
 
 import com.ercode.productdescription.adapter.out.llm.ai.AllegroTitleAiService;
 import com.ercode.productdescription.adapter.out.llm.ai.DescriptionAiService;
+import com.ercode.productdescription.adapter.out.llm.ai.DescriptionScorerAiService;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +26,13 @@ public class AiConfig {
     @Bean
     public AllegroTitleAiService allegroTitleAiService(ChatModel chatModel) {
         return AiServices.builder(AllegroTitleAiService.class)
+                .chatModel(chatModel)
+                .build();
+    }
+
+    @Bean
+    public DescriptionScorerAiService descriptionScorerAiService(ChatModel chatModel) {
+        return AiServices.builder(DescriptionScorerAiService.class)
                 .chatModel(chatModel)
                 .build();
     }
