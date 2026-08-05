@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+      Feature 004 (templatize/RAG). Relational metadata for standard, reusable product-family templates.
+      The vector index is a separate table owned by langchain4j's PgVectorEmbeddingStore (auto-created at
+      runtime), linked back to these rows via segment metadata (templateId). All types are H2-codegen-safe.
+    -->
+    <changeSet id="003-create-description-template" author="ercode">
+        <createTable tableName="description_template">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="family" type="clob"/>
+            <column name="body" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp with time zone">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

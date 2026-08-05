@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.ercode.productdescription.adapter.out.persistence.jooq.Tables.DESCRIPTION_TEMPLATE;
 import static com.ercode.productdescription.adapter.out.persistence.jooq.Tables.PRODUCT_DESCRIPTION;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
@@ -80,8 +81,10 @@ class GenerateDescriptionIntegrationTest {
     private DSLContext dsl;
 
     @BeforeEach
-    void resetTable() {
+    void resetTables() {
         dsl.deleteFrom(PRODUCT_DESCRIPTION).execute();
+        dsl.deleteFrom(DESCRIPTION_TEMPLATE).execute();
+        dsl.execute("DELETE FROM product_templates");   // langchain4j-owned vector table
     }
 
     @Test
@@ -121,6 +124,34 @@ class GenerateDescriptionIntegrationTest {
         assertThat(row.getScore()).isNotNull();
         assertThat(row.getScoredAt()).isNotNull();
         assertThat(row.getScoreAssessment()).isNotBlank();
+    }
+
+    @Test
+    void creates_a_template_and_finds_it_by_semantic_search() throws Exception {
+        String create = """
+                {
+                  "name": "Etui do telefonu",
+                  "family": "phone-case",
+                  "body": "Podkreśl ochronę przed upadkiem, wycięcia na porty i kompatybilność z ładowaniem bezprzewodowym."
+                }
+                """;
+        HttpResponse<String> created = postJson("/api/v1/templates", create);
+        assertThat(created.statusCode()).isEqualTo(201);
+        assertThat(dsl.fetchCount(DESCRIPTION_TEMPLATE)).isEqualTo(1);
+
+        HttpResponse<String> found = postJson("/api/v1/templates:search",
+                "{ \"query\": \"etui ochronne na telefon\" }");
+        assertThat(found.statusCode()).isEqualTo(200);
+        assertThat(found.body()).contains("phone-case").contains("Etui do telefonu");
+    }
+
+    private HttpResponse<String> postJson(String path, String body) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + path))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> generate() throws Exception {

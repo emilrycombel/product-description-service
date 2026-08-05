@@ -13,11 +13,16 @@ Two LLM verticals implemented end-to-end:
 | Generate Allegro search-optimized title | `POST /api/v1/allegro-titles:generate` | stateless |
 | Score a stored description (1–10, LLM-as-judge) | `POST /api/v1/descriptions/{id}:score` | jOOQ → Postgres |
 | Score an ad-hoc description (1–10) | `POST /api/v1/descriptions:score` | stateless |
+| Create a product-family template | `POST /api/v1/templates` | jOOQ + pgvector |
+| Get / list templates | `GET /api/v1/templates/{id}`, `GET /api/v1/templates` | jOOQ → Postgres |
+| Semantic template search (RAG) | `POST /api/v1/templates:search` | pgvector |
 
 Scoring returns an overall 1.0–10.0 (one decimal) plus per-dimension sub-scores (completeness, faithfulness,
 clarity, persuasiveness, Allegro SEO) and a summary — a canonical, `rubricVersion`-tagged structure.
 
-Follow-up pass (seam already in place): `004` templatize/RAG (pgvector).
+**Templatize + RAG**: create standard templates per product family (e.g. `phone-case`); generation
+auto-retrieves the best-matching family template (pgvector + in-process embeddings) and the LLM follows it.
+Backward-compatible — with no templates, generation is unchanged.
 
 ## Stack
 

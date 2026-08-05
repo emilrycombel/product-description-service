@@ -82,6 +82,81 @@ paths:
         '502':
           $ref: '#/components/responses/UpstreamError'
 
+  /api/v1/templates:
+    post:
+      operationId: createTemplate
+      summary: Create a product-family template (persisted + indexed for RAG)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    get:
+      operationId: listTemplates
+      summary: List all templates
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TemplateResponse'
+
+  /api/v1/templates/{id}:
+    get:
+      operationId: getTemplate
+      summary: Get a template by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/templates:search:
+    post:
+      operationId: searchTemplates
+      summary: Semantic search over templates (best match first)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchTemplatesRequest'
+      responses:
+        '200':
+          description: Matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TemplateMatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
   /api/v1/allegro-titles:generate:
     post:
       operationId: generateAllegroTitle
@@ -324,6 +399,56 @@ components:
           type: string
         score:
           $ref: '#/components/schemas/DescriptionScore'
+
+    CreateTemplateRequest:
+      type: object
+      required: [name, family, body]
+      properties:
+        name:
+          type: string
+        family:
+          type: string
+          description: Product-family key (e.g. "phone-case")
+        body:
+          type: string
+          description: Reusable guidance the LLM should follow for this family
+
+    TemplateResponse:
+      type: object
+      required: [id, name, family, body, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        family:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    SearchTemplatesRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+        maxResults:
+          type: integer
+          default: 5
+
+    TemplateMatchResponse:
+      type: object
+      required: [score, template]
+      properties:
+        score:
+          type: number
+          format: double
+        template:
+          $ref: '#/components/schemas/TemplateResponse'
 
     Problem:
       type: object

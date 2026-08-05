@@ -4,6 +4,7 @@ import com.ercode.productdescription.adapter.out.llm.ai.AllegroTitleAiService;
 import com.ercode.productdescription.adapter.out.llm.ai.DescriptionAiService;
 import com.ercode.productdescription.adapter.out.llm.ai.DescriptionScorerAiService;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.service.AiServices;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,9 +18,12 @@ import org.springframework.context.annotation.Configuration;
 public class AiConfig {
 
     @Bean
-    public DescriptionAiService descriptionAiService(ChatModel chatModel) {
+    public DescriptionAiService descriptionAiService(ChatModel chatModel, ContentRetriever templateContentRetriever) {
+        // Auto-RAG: each generate call retrieves the best-matching family template and injects it into the
+        // prompt. Backward-compatible — an empty template store retrieves nothing and generation is unchanged.
         return AiServices.builder(DescriptionAiService.class)
                 .chatModel(chatModel)
+                .contentRetriever(templateContentRetriever)
                 .build();
     }
 

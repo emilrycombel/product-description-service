@@ -27,3 +27,9 @@ app:
   allegro:
     title:
       max-length: 75
+  templates:
+    embedding:
+      dimension: 384          # must match the in-process embedding model + pgvector store
+    retriever:
+      max-results: 3          # top-K templates injected into generation
+      min-score: 0.6          # similarity floor to avoid injecting weak matches

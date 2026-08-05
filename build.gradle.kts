@@ -42,6 +42,10 @@ dependencies {
     implementation("dev.langchain4j:langchain4j-open-ai-spring-boot4-starter:$langchain4jStarterVersion")
     implementation("dev.langchain4j:langchain4j:$langchain4jVersion")
 
+    // --- RAG: pgvector store + in-process (offline) ONNX embeddings (384-dim, weights bundled in-jar) ---
+    implementation("dev.langchain4j:langchain4j-pgvector:$langchain4jStarterVersion")
+    implementation("dev.langchain4j:langchain4j-embeddings-bge-small-en-v15-q:$langchain4jStarterVersion")
+
     // --- Test ---
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")

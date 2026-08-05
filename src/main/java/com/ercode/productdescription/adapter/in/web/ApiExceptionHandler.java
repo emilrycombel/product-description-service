@@ -3,6 +3,7 @@ package com.ercode.productdescription.adapter.in.web;
 import com.ercode.productdescription.application.LlmUnavailableException;
 import com.ercode.productdescription.domain.DescriptionNotFoundException;
 import com.ercode.productdescription.domain.IncompleteDescriptionException;
+import com.ercode.productdescription.domain.TemplateNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -33,10 +34,10 @@ public class ApiExceptionHandler {
         return problem;
     }
 
-    @ExceptionHandler(DescriptionNotFoundException.class)
-    public ProblemDetail onNotFound(DescriptionNotFoundException ex) {
+    @ExceptionHandler({DescriptionNotFoundException.class, TemplateNotFoundException.class})
+    public ProblemDetail onNotFound(RuntimeException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
-        problem.setTitle("Description not found");
+        problem.setTitle("Not found");
         problem.setDetail(ex.getMessage());
         return problem;
     }
