@@ -1,6 +1,7 @@
-# Gradle
-.gradle/
-build/
+# Gradle / build output (root-anchored so we never match source package dirs
+# named build/out/bin — e.g. adapter/out, application/port/out)
+/.gradle/
+/build/
 !gradle/wrapper/gradle-wrapper.jar
 
 # IDE
@@ -9,8 +10,8 @@ build/
 *.ipr
 *.iws
 .vscode/
-out/
-bin/
+/out/
+/bin/
 
 # OS
 .DS_Store
