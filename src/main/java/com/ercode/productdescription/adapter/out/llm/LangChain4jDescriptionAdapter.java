@@ -18,20 +18,25 @@ public class LangChain4jDescriptionAdapter implements DescriptionGeneratorPort {
 
     private final DescriptionAiService aiService;
     private final String modelName;
+    private final boolean visionEnabled;
 
     public LangChain4jDescriptionAdapter(
             DescriptionAiService aiService,
-            @Value("${langchain4j.open-ai.chat-model.model-name}") String modelName) {
+            @Value("${langchain4j.open-ai.chat-model.model-name}") String modelName,
+            @Value("${app.llm.vision-enabled}") boolean visionEnabled) {
         this.aiService = aiService;
         this.modelName = modelName;
+        this.visionEnabled = visionEnabled;
     }
 
     @Override
     public GeneratedDescription generate(ProductInput input) {
-        String brief = composeBrief(input);
-        List<ImageContent> images = input.images().stream()
-                .map(LangChain4jDescriptionAdapter::toImageContent)
-                .toList();
+        // Only send images when vision is enabled; otherwise ignore them so non-vision models don't break.
+        boolean withImages = visionEnabled && input.hasImages();
+        String brief = composeBrief(input, withImages);
+        List<ImageContent> images = withImages
+                ? input.images().stream().map(LangChain4jDescriptionAdapter::toImageContent).toList()
+                : List.of();
         try {
             return aiService.generate(brief, images);
         } catch (RuntimeException e) {
@@ -50,7 +55,7 @@ public class LangChain4jDescriptionAdapter implements DescriptionGeneratorPort {
                 : ImageContent.from(image.base64(), image.mimeType());
     }
 
-    private static String composeBrief(ProductInput input) {
+    private static String composeBrief(ProductInput input, boolean withImages) {
         StringBuilder b = new StringBuilder();
         b.append("Write the description in language: ").append(input.language()).append(".\n");
         b.append("Product name: ").append(input.productName()).append('\n');
@@ -58,7 +63,7 @@ public class LangChain4jDescriptionAdapter implements DescriptionGeneratorPort {
         appendIfPresent(b, "Brand", input.brand());
         appendIfPresent(b, "Supplier-provided text", input.supplierText());
         appendIfPresent(b, "User-provided notes", input.userText());
-        if (input.hasImages()) {
+        if (withImages) {
             b.append("Product images are attached; use them as an additional source of facts.\n");
         }
         return b.toString();

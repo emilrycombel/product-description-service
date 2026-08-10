@@ -27,6 +27,10 @@ langchain4j:
       log-responses: ${LLM_LOG:false}
 
 app:
+  llm:
+    # Whether to send product images to the model. Off by default so non-vision models/gateways never break
+    # on image inputs — provided images are simply ignored. Set true only with a vision-capable model.
+    vision-enabled: ${LLM_VISION_ENABLED:false}
   allegro:
     title:
       max-length: 75

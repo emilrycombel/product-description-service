@@ -64,6 +64,7 @@ LLM connection is fully env-overridable:
 | `LLM_MODEL` | `langchain4j.open-ai.chat-model.model-name` | `gpt-4o-mini` |
 | `LLM_RESPONSE_FORMAT` | `langchain4j.open-ai.chat-model.response-format` | *(unset)* |
 | `LLM_STRICT_SCHEMA` | `langchain4j.open-ai.chat-model.strict-json-schema` | `false` |
+| `LLM_VISION_ENABLED` | `app.llm.vision-enabled` | `false` |
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | datasource | local Postgres |
 
 ### Structured output & gateways
@@ -78,8 +79,13 @@ LLM_RESPONSE_FORMAT=json_schema LLM_STRICT_SCHEMA=true
 
 If a gateway that does not support `json_schema` is used with it enabled, it returns an empty message and
 generation fails with `Failed to parse null …` — leave these unset for such gateways. (Output structure is
-still enforced server-side by the domain completeness check + fixed prompts.) A `null`-content failure can
-also mean images were sent to a **non-vision** model — test text-only first and use a vision-capable model.
+still enforced server-side by the domain completeness check + fixed prompts.)
+
+### Images (vision)
+
+Product images are **ignored by default** (`LLM_VISION_ENABLED=false`), so non-vision models/gateways never
+break on image inputs. Set `LLM_VISION_ENABLED=true` only when pointing at a vision-capable model to have
+provided images used as an additional source of facts.
 
 ## Run locally
 
