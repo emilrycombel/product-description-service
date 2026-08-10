@@ -62,7 +62,24 @@ LLM connection is fully env-overridable:
 | `LLM_BASE_URL` | `langchain4j.open-ai.chat-model.base-url` | `https://api.openai.com/v1` |
 | `LLM_API_KEY` | `langchain4j.open-ai.chat-model.api-key` | `changeme` |
 | `LLM_MODEL` | `langchain4j.open-ai.chat-model.model-name` | `gpt-4o-mini` |
+| `LLM_RESPONSE_FORMAT` | `langchain4j.open-ai.chat-model.response-format` | *(unset)* |
+| `LLM_STRICT_SCHEMA` | `langchain4j.open-ai.chat-model.strict-json-schema` | `false` |
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | datasource | local Postgres |
+
+### Structured output & gateways
+
+By default the service uses **prompt-based** structured output (langchain4j appends JSON-format instructions
+and parses the reply), which works on **any** OpenAI-compatible endpoint. Only enable OpenAI's `json_schema`
+mode on endpoints that actually support it (real OpenAI, Azure OpenAI):
+
+```bash
+LLM_RESPONSE_FORMAT=json_schema LLM_STRICT_SCHEMA=true
+```
+
+If a gateway that does not support `json_schema` is used with it enabled, it returns an empty message and
+generation fails with `Failed to parse null …` — leave these unset for such gateways. (Output structure is
+still enforced server-side by the domain completeness check + fixed prompts.) A `null`-content failure can
+also mean images were sent to a **non-vision** model — test text-only first and use a vision-capable model.
 
 ## Run locally
 

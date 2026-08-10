@@ -17,8 +17,11 @@ langchain4j:
       base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
       api-key: ${LLM_API_KEY:changeme}
       model-name: ${LLM_MODEL:gpt-4o-mini}
-      response-format: json_schema
-      strict-json-schema: true
+      # Structured output is gateway-agnostic by default: with no response-format, langchain4j appends
+      # JSON-format instructions to the prompt and parses the text — works on any OpenAI-compatible endpoint.
+      # Opt into OpenAI's json_schema mode only for endpoints that support it: LLM_RESPONSE_FORMAT=json_schema.
+      response-format: ${LLM_RESPONSE_FORMAT:}
+      strict-json-schema: ${LLM_STRICT_SCHEMA:false}
       temperature: 0.4
       log-requests: ${LLM_LOG:false}
       log-responses: ${LLM_LOG:false}
