@@ -13,5 +13,6 @@ public record GenerateDescriptionRequest(
         String language,
         String supplierText,
         String userText,
-        @Valid List<ImageInputDto> images) {
+        @Valid List<ImageInputDto> images,
+        String externalId) {
 }

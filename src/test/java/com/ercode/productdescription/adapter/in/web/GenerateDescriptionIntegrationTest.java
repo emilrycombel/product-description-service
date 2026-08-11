@@ -1,9 +1,10 @@
 package com.ercode.productdescription.adapter.in.web;
 
+import com.ercode.productdescription.domain.model.DescriptionItem;
 import com.ercode.productdescription.domain.model.DescriptionScore;
+import com.ercode.productdescription.domain.model.DescriptionSection;
 import com.ercode.productdescription.domain.model.DimensionScore;
 import com.ercode.productdescription.domain.model.GeneratedDescription;
-import com.ercode.productdescription.domain.model.SpecRow;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -94,15 +95,48 @@ class GenerateDescriptionIntegrationTest {
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body())
                 .contains("structureVersion")
-                .contains("1.0")
-                .contains("iPhone 16 Pro");
+                .contains("2.0")
+                .contains("iPhone 16 Pro")
+                .contains("sections");
 
         assertThat(dsl.fetchCount(PRODUCT_DESCRIPTION)).isEqualTo(1);
         var row = dsl.selectFrom(PRODUCT_DESCRIPTION).fetchSingle();
         assertThat(row.getStructureVersion()).isEqualTo(GeneratedDescription.STRUCTURE_VERSION);
+        assertThat(row.getExternalId()).isEqualTo("SKU-INT-1");
         assertThat(row.getModelName()).isNotBlank();
         assertThat(row.getRawJson()).isNotBlank();
         assertThat(row.getScore()).isNull();
+    }
+
+    @Test
+    void regenerating_for_the_same_external_id_upserts_and_is_retrievable() throws Exception {
+        assertThat(generate().statusCode()).isEqualTo(200);
+        assertThat(generate().statusCode()).isEqualTo(200);
+
+        // Upsert: two generations for the same externalId leave exactly one row.
+        assertThat(dsl.fetchCount(PRODUCT_DESCRIPTION)).isEqualTo(1);
+
+        HttpRequest getRequest = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/v1/products/SKU-INT-1/description"))
+                .GET()
+                .build();
+        HttpResponse<String> fetched = HttpClient.newHttpClient()
+                .send(getRequest, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(fetched.statusCode()).isEqualTo(200);
+        assertThat(fetched.body()).contains("SKU-INT-1").contains("sections").contains("iPhone 16 Pro");
+    }
+
+    @Test
+    void get_by_unknown_external_id_returns_404() throws Exception {
+        HttpRequest getRequest = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/v1/products/does-not-exist/description"))
+                .GET()
+                .build();
+        HttpResponse<String> fetched = HttpClient.newHttpClient()
+                .send(getRequest, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(fetched.statusCode()).isEqualTo(404);
     }
 
     @Test
@@ -162,6 +196,7 @@ class GenerateDescriptionIntegrationTest {
                   "category": "Szkła hartowane",
                   "supplierText": "9H tempered glass, oleophobic, 2-pack with applicator frame",
                   "userText": "Podkreśl łatwą aplikację",
+                  "externalId": "SKU-INT-1",
                   "images": [{ "url": "https://example.com/spigen.png" }]
                 }
                 """;
@@ -178,14 +213,23 @@ class GenerateDescriptionIntegrationTest {
     }
 
     private static String openAiDescriptionBody() {
-        GeneratedDescription description = new GeneratedDescription(
-                "Szkło hartowane Spigen GLAS.tR do iPhone 16 Pro (2 szt.)",
-                "Najwyższa ochrona z powłoką 9H i łatwą aplikacją.",
-                List.of("Twardość 9H", "Powłoka oleofobowa", "Zestaw 2 szt."),
-                List.of("2x szkło hartowane", "Ramka aplikatora", "Chusteczki czyszczące"),
-                "Apple iPhone 16 Pro",
-                List.of(new SpecRow("Twardość", "9H"), new SpecRow("Ilość", "2 szt.")),
-                "Spigen to uznany producent akcesoriów ochronnych.");
+        GeneratedDescription description = new GeneratedDescription(List.of(
+                DescriptionSection.of(DescriptionItem.text(
+                        "<h1>Szkło hartowane Spigen GLAS.tR do iPhone 16 Pro (2 szt.)</h1>"
+                                + "<p>Najwyższa ochrona z powłoką 9H i łatwą aplikacją.</p>")),
+                DescriptionSection.of(
+                        DescriptionItem.text("<h2>Zalety</h2><ul><li>Twardość 9H</li>"
+                                + "<li>Powłoka oleofobowa</li><li>Zestaw 2 szt.</li></ul>"),
+                        DescriptionItem.image("https://example.com/spigen.png")),
+                DescriptionSection.of(DescriptionItem.text(
+                        "<h2>Zawartość zestawu</h2><ul><li>2x szkło hartowane</li>"
+                                + "<li>Ramka aplikatora</li><li>Chusteczki czyszczące</li></ul>")),
+                DescriptionSection.of(DescriptionItem.text(
+                        "<h2>Kompatybilność</h2><p>Apple iPhone 16 Pro</p>")),
+                DescriptionSection.of(DescriptionItem.text(
+                        "<h2>Specyfikacja</h2><ul><li>Twardość: 9H</li><li>Ilość: 2 szt.</li></ul>")),
+                DescriptionSection.of(DescriptionItem.text(
+                        "<p>Spigen to uznany producent akcesoriów ochronnych.</p>"))));
         return completion(description);
     }
 

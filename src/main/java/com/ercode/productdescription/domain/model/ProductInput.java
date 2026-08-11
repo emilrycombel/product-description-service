@@ -13,7 +13,8 @@ public record ProductInput(
         String language,
         String supplierText,
         String userText,
-        List<ProductImage> images) {
+        List<ProductImage> images,
+        String externalId) {
 
     public ProductInput {
         images = images == null ? List.of() : List.copyOf(images);
@@ -22,5 +23,17 @@ public record ProductInput(
 
     public boolean hasImages() {
         return !images.isEmpty();
+    }
+
+    public boolean hasExternalId() {
+        return externalId != null && !externalId.isBlank();
+    }
+
+    /** URLs of the provided images (base64 images have no URL and are excluded). */
+    public java.util.Set<String> imageUrls() {
+        return images.stream()
+                .filter(ProductImage::hasUrl)
+                .map(ProductImage::url)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 }

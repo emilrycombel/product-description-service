@@ -31,14 +31,16 @@ public class LangChain4jDescriptionAdapter implements DescriptionGeneratorPort {
 
     @Override
     public GeneratedDescription generate(ProductInput input) {
-        // Only send images when vision is enabled; otherwise ignore them so non-vision models don't break.
-        boolean withImages = visionEnabled && input.hasImages();
-        String brief = composeBrief(input, withImages);
-        List<ImageContent> images = withImages
+        String brief = composeBrief(input);
+        // Only send image content to the model when vision is enabled; otherwise ignore it so non-vision
+        // models don't break. (Image URLs are still listed in the brief so the model can lay them out.)
+        List<ImageContent> visionImages = visionEnabled && input.hasImages()
                 ? input.images().stream().map(LangChain4jDescriptionAdapter::toImageContent).toList()
                 : List.of();
         try {
-            return aiService.generate(brief, images);
+            GeneratedDescription generated = aiService.generate(brief, visionImages);
+            // Whitelist: keep only IMAGE items whose URL was actually provided (drop any the model invented).
+            return generated.withAllowedImages(input.imageUrls());
         } catch (RuntimeException e) {
             throw new LlmUnavailableException("Description generation failed", e);
         }
@@ -55,7 +57,7 @@ public class LangChain4jDescriptionAdapter implements DescriptionGeneratorPort {
                 : ImageContent.from(image.base64(), image.mimeType());
     }
 
-    private static String composeBrief(ProductInput input, boolean withImages) {
+    private static String composeBrief(ProductInput input) {
         StringBuilder b = new StringBuilder();
         b.append("Write the description in language: ").append(input.language()).append(".\n");
         b.append("Product name: ").append(input.productName()).append('\n');
@@ -63,8 +65,13 @@ public class LangChain4jDescriptionAdapter implements DescriptionGeneratorPort {
         appendIfPresent(b, "Brand", input.brand());
         appendIfPresent(b, "Supplier-provided text", input.supplierText());
         appendIfPresent(b, "User-provided notes", input.userText());
-        if (withImages) {
-            b.append("Product images are attached; use them as an additional source of facts.\n");
+
+        var urls = input.imageUrls();
+        if (urls.isEmpty()) {
+            b.append("No product images are available; produce text-only sections.\n");
+        } else {
+            b.append("Available image URLs — use ONLY these exact URLs for IMAGE items, never invent URLs:\n");
+            urls.forEach(u -> b.append(" - ").append(u).append('\n'));
         }
         return b.toString();
     }

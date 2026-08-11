@@ -7,9 +7,10 @@ import com.ercode.productdescription.domain.model.DescriptionScore;
 import com.ercode.productdescription.domain.model.DimensionScore;
 import com.ercode.productdescription.domain.model.GeneratedDescription;
 import com.ercode.productdescription.domain.model.ProductDescription;
+import com.ercode.productdescription.domain.model.DescriptionItem;
+import com.ercode.productdescription.domain.model.DescriptionSection;
 import com.ercode.productdescription.domain.model.ProductInput;
 import com.ercode.productdescription.domain.model.ScoredDescription;
-import com.ercode.productdescription.domain.model.SpecRow;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -77,11 +78,12 @@ class ScoreDescriptionServiceTest {
     }
 
     private static ProductInput input() {
-        return new ProductInput("x", null, null, "pl", null, null, List.of());
+        return new ProductInput("x", null, null, "pl", null, null, List.of(), null);
     }
 
     private static GeneratedDescription complete() {
-        return new GeneratedDescription("t", "h", List.of("b"), List.of("s"), "c",
-                List.of(new SpecRow("l", "v")), "bb");
+        return new GeneratedDescription(List.of(
+                DescriptionSection.of(DescriptionItem.text("<h1>Title</h1><p>Hook</p>")),
+                DescriptionSection.of(DescriptionItem.text("<h2>Zalety</h2><ul><li>b</li></ul>"))));
     }
 }

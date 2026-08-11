@@ -28,9 +28,9 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IncompleteDescriptionException.class)
     public ProblemDetail onIncomplete(IncompleteDescriptionException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
-        problem.setTitle("Incomplete description");
+        problem.setTitle("Invalid description layout");
         problem.setDetail(ex.getMessage());
-        problem.setProperty("missingSections", ex.missingSections());
+        problem.setProperty("violations", ex.violations());
         return problem;
     }
 

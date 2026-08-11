@@ -3,10 +3,11 @@ package com.ercode.productdescription.application.service;
 import com.ercode.productdescription.application.port.out.DescriptionGeneratorPort;
 import com.ercode.productdescription.application.port.out.ProductDescriptionRepositoryPort;
 import com.ercode.productdescription.domain.IncompleteDescriptionException;
+import com.ercode.productdescription.domain.model.DescriptionItem;
+import com.ercode.productdescription.domain.model.DescriptionSection;
 import com.ercode.productdescription.domain.model.GeneratedDescription;
 import com.ercode.productdescription.domain.model.ProductDescription;
 import com.ercode.productdescription.domain.model.ProductInput;
-import com.ercode.productdescription.domain.model.SpecRow;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -27,26 +28,27 @@ class GenerateDescriptionServiceTest {
 
     private final ProductInput input = new ProductInput(
             "Spigen GLAS.tR iPhone 16 Pro", "Szkła", "Spigen", "pl",
-            "supplier text", "user notes", List.of());
+            "supplier text", "user notes", List.of(), "SKU-123");
 
     @Test
-    void complete_result_is_persisted_and_returned() {
+    void valid_result_is_persisted_and_returned() {
         when(generator.modelName()).thenReturn("gpt-test");
-        when(generator.generate(any())).thenReturn(complete());
+        when(generator.generate(any())).thenReturn(valid());
 
         ProductDescription result = service.generate(input);
 
         assertThat(result.modelName()).isEqualTo("gpt-test");
         assertThat(result.structureVersion()).isEqualTo(GeneratedDescription.STRUCTURE_VERSION);
-        assertThat(result.generated().isComplete()).isTrue();
+        assertThat(result.generated().isValid()).isTrue();
+        assertThat(result.externalId()).isEqualTo("SKU-123");
         assertThat(result.id()).isNotNull();
         assertThat(result.createdAt()).isNotNull();
         verify(repository).save(result);
     }
 
     @Test
-    void incomplete_result_is_rejected_and_not_persisted() {
-        when(generator.generate(any())).thenReturn(incomplete());
+    void invalid_result_is_rejected_and_not_persisted() {
+        when(generator.generate(any())).thenReturn(invalid());
 
         assertThatThrownBy(() -> service.generate(input))
                 .isInstanceOf(IncompleteDescriptionException.class);
@@ -54,16 +56,13 @@ class GenerateDescriptionServiceTest {
         verify(repository, never()).save(any());
     }
 
-    private static GeneratedDescription complete() {
-        return new GeneratedDescription(
-                "Title", "Hook",
-                List.of("bullet"), List.of("box"),
-                "iPhone 16 Pro",
-                List.of(new SpecRow("Twardość", "9H")),
-                "brand");
+    private static GeneratedDescription valid() {
+        return new GeneratedDescription(List.of(
+                DescriptionSection.of(DescriptionItem.text("<h1>Title</h1><p>Hook</p>")),
+                DescriptionSection.of(DescriptionItem.text("<h2>Zalety</h2><ul><li>bullet</li></ul>"))));
     }
 
-    private static GeneratedDescription incomplete() {
-        return new GeneratedDescription("Title", "Hook", List.of(), List.of(), "", List.of(), "");
+    private static GeneratedDescription invalid() {
+        return new GeneratedDescription(List.of());
     }
 }

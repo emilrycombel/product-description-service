@@ -27,7 +27,8 @@ final class WebMapper {
                 request.language(),
                 request.supplierText(),
                 request.userText(),
-                images);
+                images,
+                request.externalId());
     }
 
     private static ProductImage toProductImage(ImageInputDto dto) {

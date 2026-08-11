@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+      Feature 005 (Allegro sections/items layout + save-by-externalId). The description is now stored only as
+      raw_json (Allegro sections); the old per-section columns are obsolete. Adds external_id for product-scoped
+      upsert/retrieval.
+    -->
+    <changeSet id="004-add-external-id" author="ercode">
+        <addColumn tableName="product_description">
+            <column name="external_id" type="clob"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="004-drop-legacy-section-columns" author="ercode">
+        <dropColumn tableName="product_description">
+            <column name="title"/>
+            <column name="marketing_hook"/>
+            <column name="benefit_bullets"/>
+            <column name="set_contents"/>
+            <column name="compatibility"/>
+            <column name="spec_table"/>
+            <column name="brand_blurb"/>
+        </dropColumn>
+    </changeSet>
+
+    <!--
+      Postgres-only: one description per product. Partial unique index so multiple rows without an external_id
+      are still allowed. Fenced with dbms="postgresql" (skipped under the in-memory-H2 jOOQ codegen).
+    -->
+    <changeSet id="004-external-id-unique-index" author="ercode" dbms="postgresql">
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS idx_product_description_external_id
+             ON product_description (external_id) WHERE external_id IS NOT NULL;</sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -2,55 +2,66 @@ package com.ercode.productdescription.domain.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
- * The canonical, fixed-structure product description produced by the LLM.
+ * The canonical product description, modeled on Allegro's real format: an ordered list of
+ * {@link DescriptionSection sections}, each holding 1–2 {@link DescriptionItem items} (single text, single
+ * image, or text+image side by side). Serializes to Allegro's {@code {"sections":[{"items":[...]}]}} shape,
+ * so it is directly usable as an Allegro description payload.
  *
- * <p>Structural consistency is a first-class requirement: every generated description carries the exact
- * same section set in the same order. This record <em>is</em> that structure. The shape is named by
- * {@link #STRUCTURE_VERSION} and persisted with each result, so the structure is stable and traceable
- * across releases. Completeness (all sections populated) is a domain rule enforced via
- * {@link #missingSections()} — the application service rejects an incomplete result.
+ * <p>Structural consistency is enforced as <em>validity</em> ({@link #isValid()} / {@link #violations()}):
+ * a well-formed Allegro description with at least one text item; the recommended content ordering
+ * (title → benefits → set contents → compatibility → specs → brand) is guided by the generation prompt.
  */
-public record GeneratedDescription(
-        String title,
-        String marketingHook,
-        List<String> benefitBullets,
-        List<String> setContents,
-        String compatibility,
-        List<SpecRow> specTable,
-        String brandBlurb) {
+public record GeneratedDescription(List<DescriptionSection> sections) {
 
-    /** Canonical structure version. Bump when the section set/order changes. */
-    public static final String STRUCTURE_VERSION = "1.0";
+    /** Canonical structure version. 2.0 = Allegro sections/items (replaced the 1.0 fixed-fields shape). */
+    public static final String STRUCTURE_VERSION = "2.0";
 
     public GeneratedDescription {
-        benefitBullets = benefitBullets == null ? List.of() : List.copyOf(benefitBullets);
-        setContents = setContents == null ? List.of() : List.copyOf(setContents);
-        specTable = specTable == null ? List.of() : List.copyOf(specTable);
+        sections = sections == null ? List.of() : List.copyOf(sections);
+    }
+
+    /** Human-readable structural problems; empty when the description is a valid Allegro layout. */
+    public List<String> violations() {
+        List<String> problems = new ArrayList<>();
+        if (sections.isEmpty()) {
+            problems.add("no sections");
+        }
+        for (int i = 0; i < sections.size(); i++) {
+            if (!sections.get(i).isValid()) {
+                problems.add("section " + i + " is not a valid Allegro section (1-2 items; a 2-item section "
+                        + "must be exactly one text and one image)");
+            }
+        }
+        boolean hasText = sections.stream()
+                .flatMap(s -> s.items().stream())
+                .anyMatch(DescriptionItem::isText);
+        if (!hasText) {
+            problems.add("no text content");
+        }
+        return List.copyOf(problems);
+    }
+
+    public boolean isValid() {
+        return violations().isEmpty();
     }
 
     /**
-     * Names the required sections that are missing or empty. An empty result means the description is
-     * structurally complete. Order mirrors the canonical section order.
+     * Returns a copy keeping only IMAGE items whose URL is in {@code allowedUrls} (dropping any the model
+     * invented), and dropping sections left empty. Text items are untouched.
      */
-    public List<String> missingSections() {
-        List<String> missing = new ArrayList<>();
-        if (isBlank(title)) missing.add("title");
-        if (isBlank(marketingHook)) missing.add("marketingHook");
-        if (benefitBullets.isEmpty()) missing.add("benefitBullets");
-        if (setContents.isEmpty()) missing.add("setContents");
-        if (isBlank(compatibility)) missing.add("compatibility");
-        if (specTable.isEmpty()) missing.add("specTable");
-        if (isBlank(brandBlurb)) missing.add("brandBlurb");
-        return List.copyOf(missing);
-    }
-
-    public boolean isComplete() {
-        return missingSections().isEmpty();
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
+    public GeneratedDescription withAllowedImages(Set<String> allowedUrls) {
+        List<DescriptionSection> kept = new ArrayList<>();
+        for (DescriptionSection section : sections) {
+            List<DescriptionItem> items = section.items().stream()
+                    .filter(item -> item.isText() || allowedUrls.contains(item.url()))
+                    .toList();
+            if (!items.isEmpty()) {
+                kept.add(new DescriptionSection(items));
+            }
+        }
+        return new GeneratedDescription(kept);
     }
 }

@@ -15,8 +15,11 @@ paths:
       operationId: generateDescription
       summary: Generate a structured product description from mixed inputs
       description: >
-        Produces a canonical, fixed-structure product description from supplier text, the user's own
-        text, and/or product images. The output structure is identical across all responses.
+        Produces a product description in Allegro's layout (an ordered list of sections, each with 1–2
+        items: single text, single image, or text+image side by side) from supplier text, the user's own
+        text, and/or product images. When an `externalId` is supplied the description is upserted against
+        it (regenerating replaces the previous one) and can be retrieved via
+        `GET /api/v1/products/{externalId}/description`.
       requestBody:
         required: true
         content:
@@ -36,6 +39,26 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '502':
           $ref: '#/components/responses/UpstreamError'
+
+  /api/v1/products/{externalId}/description:
+    get:
+      operationId: getProductDescription
+      summary: Get the current stored description for a product (by external id)
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The product's current description
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDescriptionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/v1/descriptions/{id}:score:
     post:
@@ -193,7 +216,7 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
     Unprocessable:
-      description: The model output did not satisfy the canonical structure
+      description: The model output was not a valid Allegro layout (see `violations`)
       content:
         application/problem+json:
           schema:
@@ -236,6 +259,12 @@ components:
         userText:
           type: string
           description: The user's own notes/text
+        externalId:
+          type: string
+          description: >
+            The product id to save this description against. When present, the description is upserted
+            (one per externalId) and retrievable via GET /api/v1/products/{externalId}/description.
+          example: "SUPPLIER-SKU-12345"
         images:
           type: array
           items:
@@ -262,6 +291,10 @@ components:
         id:
           type: string
           format: uuid
+        externalId:
+          type: string
+          nullable: true
+          description: The product id this description is saved against, if any
         modelName:
           type: string
         structureVersion:
@@ -275,44 +308,52 @@ components:
 
     GeneratedDescription:
       type: object
-      description: Canonical, fixed-structure description. All fields are always present.
-      required: [title, marketingHook, benefitBullets, setContents, compatibility, specTable, brandBlurb]
+      description: >
+        A product description in Allegro's layout: an ordered list of sections. Every valid description has
+        at least one text item. Serializes directly to an Allegro description payload.
+      required: [sections]
       properties:
-        title:
-          type: string
-        marketingHook:
-          type: string
-          description: Punchy opening hook
-        benefitBullets:
+        sections:
           type: array
           minItems: 1
           items:
-            type: string
-        setContents:
-          type: array
-          description: What's in the box
-          items:
-            type: string
-        compatibility:
-          type: string
-          description: Compatibility notes (e.g. exact device models)
-        specTable:
-          type: array
-          minItems: 1
-          items:
-            $ref: '#/components/schemas/SpecRow'
-        brandBlurb:
-          type: string
-          description: Short about-the-brand paragraph
+            $ref: '#/components/schemas/DescriptionSection'
 
-    SpecRow:
+    DescriptionSection:
       type: object
-      required: [label, value]
+      description: >
+        An Allegro description row. Holds 1 item (full width) or 2 items shown side by side. A two-item
+        section is exactly one TEXT and one IMAGE; array order sets the layout ([TEXT, IMAGE] = text left /
+        image right; [IMAGE, TEXT] = image left / text right).
+      required: [items]
       properties:
-        label:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/DescriptionItem'
+
+    DescriptionItem:
+      type: object
+      description: >
+        A single item within a section — either a TEXT item (HTML content) or an IMAGE item (a URL from the
+        request). Exactly one of `content`/`url` is populated, per `type`.
+      required: [type]
+      properties:
+        type:
           type: string
-        value:
+          enum: [TEXT, IMAGE]
+        content:
           type: string
+          description: >
+            For TEXT items: HTML using only Allegro's allowed subset (h1, h2, p, ul, ol, li, b) with no
+            attributes. A specification table is rendered as a <ul> of "Label: value" items.
+          example: "<h1>Szkło hartowane Spigen GLAS.tR</h1><p>Najwyższa ochrona z powłoką 9H.</p>"
+        url:
+          type: string
+          format: uri
+          description: For IMAGE items: an image URL taken only from the request (never invented by the model).
 
     GenerateAllegroTitleRequest:
       type: object

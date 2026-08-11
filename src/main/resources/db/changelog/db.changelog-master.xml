@@ -8,6 +8,7 @@
     <include file="db/changelog/changes/001-product-description.xml"/>
     <include file="db/changelog/changes/002-description-score.xml"/>
     <include file="db/changelog/changes/003-templates.xml"/>
+    <include file="db/changelog/changes/004-allegro-layout.xml"/>
     <include file="db/changelog/changes/010-pgvector.xml"/>
 
 </databaseChangeLog>

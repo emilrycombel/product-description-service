@@ -2,6 +2,7 @@ package com.ercode.productdescription.config;
 
 import com.ercode.productdescription.application.port.in.GenerateAllegroTitleUseCase;
 import com.ercode.productdescription.application.port.in.GenerateDescriptionUseCase;
+import com.ercode.productdescription.application.port.in.GetProductDescriptionUseCase;
 import com.ercode.productdescription.application.port.in.ScoreDescriptionUseCase;
 import com.ercode.productdescription.application.port.in.TemplateUseCase;
 import com.ercode.productdescription.application.port.out.AllegroTitleGeneratorPort;
@@ -12,6 +13,7 @@ import com.ercode.productdescription.application.port.out.TemplateIndexPort;
 import com.ercode.productdescription.application.port.out.TemplateRepositoryPort;
 import com.ercode.productdescription.application.service.GenerateAllegroTitleService;
 import com.ercode.productdescription.application.service.GenerateDescriptionService;
+import com.ercode.productdescription.application.service.GetProductDescriptionService;
 import com.ercode.productdescription.application.service.ScoreDescriptionService;
 import com.ercode.productdescription.application.service.TemplateService;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +46,12 @@ public class UseCaseConfig {
             DescriptionScorerPort scorer,
             ProductDescriptionRepositoryPort repository) {
         return new ScoreDescriptionService(scorer, repository);
+    }
+
+    @Bean
+    public GetProductDescriptionUseCase getProductDescriptionUseCase(
+            ProductDescriptionRepositoryPort repository) {
+        return new GetProductDescriptionService(repository);
     }
 
     @Bean

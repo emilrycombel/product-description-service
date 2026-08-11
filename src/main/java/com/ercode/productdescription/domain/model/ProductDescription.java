@@ -33,4 +33,9 @@ public record ProductDescription(
     public String structureVersion() {
         return GeneratedDescription.STRUCTURE_VERSION;
     }
+
+    /** The product this description is saved against (from the input), or null if none. */
+    public String externalId() {
+        return input.externalId();
+    }
 }

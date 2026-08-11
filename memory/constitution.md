@@ -25,10 +25,16 @@ Non-negotiable principles for this codebase. Every change is checked against the
 - Tests requiring a real Postgres/pgvector or the LLM use Testcontainers + WireMock and are annotated
   `@Testcontainers(disabledWithoutDocker = true)` so `./gradlew build` still passes locally.
 
-## 5. Canonical, versioned output structure
-- Every generated description returns the **exact same section set in the same order** — never a
-  per-response ad-hoc shape. Enforced at three layers: (a) the `GeneratedDescription` JSON schema at the LLM
-  boundary (`strict-json-schema`), (b) a domain completeness invariant, (c) a fixed-order prompt.
+## 5. Canonical, versioned output structure (valid Allegro layout)
+- Every generated description is a **valid Allegro layout**: an ordered list of sections, each with 1–2 items
+  (single text, single image, or exactly one text + one image side by side), with at least one text item.
+  TEXT content is HTML restricted to Allegro's allowed subset (`h1, h2, p, ul, ol, li, b`); IMAGE URLs come
+  only from the request. The structure is a *valid shape*, not a per-response ad-hoc form.
+- Enforced at three layers: (a) the `GeneratedDescription` model that serializes to Allegro's
+  `{"sections":[{"items":[...]}]}` shape at the LLM boundary, (b) a domain validity invariant
+  (`GeneratedDescription.violations()` → 422 on a malformed layout, plus image-whitelisting to the provided
+  URLs), (c) a prompt that fixes the allowed tags/rules and *recommends* a content ordering (title/hook →
+  benefits → set contents → compatibility → specs → brand).
 - The shape is named by `GeneratedDescription.STRUCTURE_VERSION` and persisted with every row, so structure
   is stable and traceable across releases. Templatization constrains *content*, never the *structure*.
 

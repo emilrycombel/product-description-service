@@ -29,10 +29,10 @@ public class GenerateDescriptionService implements GenerateDescriptionUseCase {
     public ProductDescription generate(ProductInput input) {
         GeneratedDescription generated = generator.generate(input);
 
-        List<String> missing = generated.missingSections();
-        if (!missing.isEmpty()) {
-            // Guarantees structural consistency even if the gateway ignored strict JSON-schema mode.
-            throw new IncompleteDescriptionException(missing);
+        List<String> violations = generated.violations();
+        if (!violations.isEmpty()) {
+            // Guarantees a valid Allegro layout even if the model produced a malformed structure.
+            throw new IncompleteDescriptionException(violations);
         }
 
         ProductDescription description = ProductDescription.create(input, generated, generator.modelName());

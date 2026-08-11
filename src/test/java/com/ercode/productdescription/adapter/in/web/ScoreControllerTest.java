@@ -71,11 +71,10 @@ class ScoreControllerTest {
 
         String body = """
                 {
-                  "title": "t", "marketingHook": "h",
-                  "benefitBullets": ["b"], "setContents": ["s"],
-                  "compatibility": "c",
-                  "specTable": [{ "label": "l", "value": "v" }],
-                  "brandBlurb": "bb"
+                  "sections": [
+                    { "items": [ { "type": "TEXT", "content": "<h1>Title</h1><p>Hook</p>" } ] },
+                    { "items": [ { "type": "TEXT", "content": "<h2>Zalety</h2><ul><li>b</li></ul>" } ] }
+                  ]
                 }
                 """;
 

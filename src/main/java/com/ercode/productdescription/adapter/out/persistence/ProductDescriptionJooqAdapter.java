@@ -35,29 +35,33 @@ public class ProductDescriptionJooqAdapter implements ProductDescriptionReposito
     public void save(ProductDescription description) {
         ProductInput input = description.input();
         GeneratedDescription generated = description.generated();
+        String externalId = description.externalId();
 
-        dsl.insertInto(PRODUCT_DESCRIPTION)
-                .set(PRODUCT_DESCRIPTION.ID, description.id())
-                .set(PRODUCT_DESCRIPTION.PRODUCT_NAME, input.productName())
-                .set(PRODUCT_DESCRIPTION.CATEGORY, input.category())
-                .set(PRODUCT_DESCRIPTION.BRAND, input.brand())
-                .set(PRODUCT_DESCRIPTION.LANGUAGE, input.language())
-                .set(PRODUCT_DESCRIPTION.SUPPLIER_TEXT, input.supplierText())
-                .set(PRODUCT_DESCRIPTION.USER_TEXT, input.userText())
-                .set(PRODUCT_DESCRIPTION.IMAGE_INPUTS, json.toJson(input.images()))
-                .set(PRODUCT_DESCRIPTION.TITLE, generated.title())
-                .set(PRODUCT_DESCRIPTION.MARKETING_HOOK, generated.marketingHook())
-                .set(PRODUCT_DESCRIPTION.BENEFIT_BULLETS, json.toJson(generated.benefitBullets()))
-                .set(PRODUCT_DESCRIPTION.SET_CONTENTS, json.toJson(generated.setContents()))
-                .set(PRODUCT_DESCRIPTION.COMPATIBILITY, generated.compatibility())
-                .set(PRODUCT_DESCRIPTION.SPEC_TABLE, json.toJson(generated.specTable()))
-                .set(PRODUCT_DESCRIPTION.BRAND_BLURB, generated.brandBlurb())
-                .set(PRODUCT_DESCRIPTION.RAW_JSON, json.toJson(generated))
-                .set(PRODUCT_DESCRIPTION.MODEL_NAME, description.modelName())
-                .set(PRODUCT_DESCRIPTION.STRUCTURE_VERSION, description.structureVersion())
-                .set(PRODUCT_DESCRIPTION.SCORE, description.score())
-                .set(PRODUCT_DESCRIPTION.CREATED_AT, description.createdAt())
-                .execute();
+        // Upsert semantics: one description per product. Replace any existing row for this externalId.
+        dsl.transaction(config -> {
+            DSLContext ctx = config.dsl();
+            if (externalId != null && !externalId.isBlank()) {
+                ctx.deleteFrom(PRODUCT_DESCRIPTION)
+                        .where(PRODUCT_DESCRIPTION.EXTERNAL_ID.eq(externalId))
+                        .execute();
+            }
+            ctx.insertInto(PRODUCT_DESCRIPTION)
+                    .set(PRODUCT_DESCRIPTION.ID, description.id())
+                    .set(PRODUCT_DESCRIPTION.EXTERNAL_ID, externalId)
+                    .set(PRODUCT_DESCRIPTION.PRODUCT_NAME, input.productName())
+                    .set(PRODUCT_DESCRIPTION.CATEGORY, input.category())
+                    .set(PRODUCT_DESCRIPTION.BRAND, input.brand())
+                    .set(PRODUCT_DESCRIPTION.LANGUAGE, input.language())
+                    .set(PRODUCT_DESCRIPTION.SUPPLIER_TEXT, input.supplierText())
+                    .set(PRODUCT_DESCRIPTION.USER_TEXT, input.userText())
+                    .set(PRODUCT_DESCRIPTION.IMAGE_INPUTS, json.toJson(input.images()))
+                    .set(PRODUCT_DESCRIPTION.RAW_JSON, json.toJson(generated))
+                    .set(PRODUCT_DESCRIPTION.MODEL_NAME, description.modelName())
+                    .set(PRODUCT_DESCRIPTION.STRUCTURE_VERSION, description.structureVersion())
+                    .set(PRODUCT_DESCRIPTION.SCORE, description.score())
+                    .set(PRODUCT_DESCRIPTION.CREATED_AT, description.createdAt())
+                    .execute();
+        });
     }
 
     @Override
@@ -78,6 +82,14 @@ public class ProductDescriptionJooqAdapter implements ProductDescriptionReposito
         return Optional.ofNullable(record).map(this::toDomain);
     }
 
+    @Override
+    public Optional<ProductDescription> findByExternalId(String externalId) {
+        ProductDescriptionRecord record = dsl.selectFrom(PRODUCT_DESCRIPTION)
+                .where(PRODUCT_DESCRIPTION.EXTERNAL_ID.eq(externalId))
+                .fetchAny();
+        return Optional.ofNullable(record).map(this::toDomain);
+    }
+
     private ProductDescription toDomain(ProductDescriptionRecord record) {
         List<ProductImage> images = record.getImageInputs() == null
                 ? List.of()
@@ -90,7 +102,8 @@ public class ProductDescriptionJooqAdapter implements ProductDescriptionReposito
                 record.getLanguage(),
                 record.getSupplierText(),
                 record.getUserText(),
-                images);
+                images,
+                record.getExternalId());
 
         GeneratedDescription generated = json.fromJson(record.getRawJson(), GeneratedDescription.class);
 

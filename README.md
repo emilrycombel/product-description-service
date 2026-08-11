@@ -10,12 +10,34 @@ Two LLM verticals implemented end-to-end:
 | Vertical | Endpoint | Persistence |
 | --- | --- | --- |
 | Generate description (multimodal: supplier text + user text + images) | `POST /api/v1/descriptions:generate` | jOOQ → Postgres |
+| Get a product's stored description (by external id) | `GET /api/v1/products/{externalId}/description` | jOOQ → Postgres |
 | Generate Allegro search-optimized title | `POST /api/v1/allegro-titles:generate` | stateless |
 | Score a stored description (1–10, LLM-as-judge) | `POST /api/v1/descriptions/{id}:score` | jOOQ → Postgres |
 | Score an ad-hoc description (1–10) | `POST /api/v1/descriptions:score` | stateless |
 | Create a product-family template | `POST /api/v1/templates` | jOOQ + pgvector |
 | Get / list templates | `GET /api/v1/templates/{id}`, `GET /api/v1/templates` | jOOQ → Postgres |
 | Semantic template search (RAG) | `POST /api/v1/templates:search` | pgvector |
+
+### Description structure (Allegro layout)
+
+Generated descriptions follow **Allegro's real description format**, so the `description` payload is directly
+usable as an Allegro listing:
+
+- A description is an ordered list of **sections** (rows). Each section holds **1 or 2 items**.
+- An item is either a **TEXT** item (`{"type":"TEXT","content":"<html>"}`) or an **IMAGE** item
+  (`{"type":"IMAGE","url":"..."}`).
+- A two-item section is **exactly one TEXT and one IMAGE** side by side; array order sets the layout
+  (`[TEXT, IMAGE]` = text left / image right, `[IMAGE, TEXT]` = image left / text right). This gives the four
+  row shapes: single text, single image, text+image, image+text.
+- TEXT `content` is HTML restricted to Allegro's allowed subset — **`h1, h2, p, ul, ol, li, b`** only, no other
+  tags and no attributes. A spec table is rendered as a `<ul>` of "Label: value" items (Allegro drops `<table>`).
+- IMAGE `url`s come **only from the request** — the model never invents URLs, and any it does are dropped. Note
+  Allegro ultimately serves images from its own CDN, so supply Allegro-hosted image URLs when targeting a live
+  listing.
+
+**Save against a product.** Pass an `externalId` (your product id) to persist the description against it. It is
+an **upsert** — one description per `externalId`, so regenerating replaces the previous one — and it can be
+fetched later with `GET /api/v1/products/{externalId}/description` (404 if none).
 
 Scoring returns an overall 1.0–10.0 (one decimal) plus per-dimension sub-scores (completeness, faithfulness,
 clarity, persuasiveness, Allegro SEO) and a summary — a canonical, `rubricVersion`-tagged structure.
